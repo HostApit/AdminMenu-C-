@@ -1,0 +1,343 @@
+#include <iostream>
+#include <string>
+#include <mysql.h>
+#include <conio.h>
+#include <thread>
+#include <chrono>
+#include <iomanip>
+#include "CustomerMenu.h"
+#include "StaffMenu.h"
+#include "AdminMenu.h"
+//#include "ViewTables.h"
+
+using namespace std;
+
+// Global variables for MySQL connection
+MYSQL* conn;
+MYSQL_ROW row;
+MYSQL_RES* res;
+
+class db_response {
+public:
+    static void ConnectionFunction() {
+        conn = mysql_init(0);
+        if (!conn) {
+            cerr << "MySQL initialization failed\n";
+            return;
+        }
+
+        conn = mysql_real_connect(conn, "localhost", "root", "", "inventory_management_system", 3306, NULL, 0);
+        if (conn) {
+            cout << "Database Connected To MySQL\n";
+        }
+        else {
+            cerr << "Failed To Connect! Error: " << mysql_error(conn) << "\n";
+        }
+    }
+};
+
+// Function prototypes
+void ShowWelcomePage();
+void HandleUserChoice(int choice);
+void LoginPage();
+void RegisterPage();
+void StaffPasswordCheck();
+void printWithDelay(const string& text, int delayMs = 100);
+
+// Function to display text with a delay effect for better presentation
+void printWithDelay(const string& text, int delayMs) {
+    for (char c : text) {
+        cout << c;
+        this_thread::sleep_for(chrono::milliseconds(delayMs));
+    }
+
+}
+
+void ShowWelcomePage() {
+    system("cls");
+    system("title Assure Supermarket Inventory Management System");
+    cout << "******************************************\n";
+    cout << "*      WELCOME TO ASSURE SUPERMARKET     *\n";
+    cout << "*       INVENTORY MANAGEMENT SYSTEM      *\n";
+    cout << "*               Since 2024               *\n";
+    cout << "******************************************\n\n";
+    printWithDelay("Please choose an option:\n\n", 50);
+    cout << "  1. Login to your account\n";
+    cout << "  2. Register a new account\n";
+    cout << "  3. Exit\n";
+    cout << "\nPlease select an option (1-3): ";
+}
+
+void HandleUserChoice(int choice) {
+    switch (choice) {
+    case 1:
+        cout << "\nYou choose to log in. Please proceed with your login details.\n";
+        LoginPage();
+        break;
+    case 2:
+        cout << "\nYou choose to register. Let's get you set up!\n";
+        RegisterPage();
+        break;
+    case 3:
+        cout << "\nExiting system. Hope see you again!\n";
+        exit(0);
+        break;
+    default:
+        cout << "\nInvalid choice! Please select a valid option.\n";
+        break;
+    }
+}
+
+// Login Page Function
+void LoginPage() {
+    string username, password;
+    int attempts = 0;
+    const int maxAttempts = 3;
+
+    while (attempts < maxAttempts) {
+        cout << "\n--- Login Page ---\n";
+        cout << "Enter Username: ";
+        cin >> username;
+
+        // Password input with hidden characters
+        cout << "Enter Password: ";
+        password = "";
+        char ch;
+        while (true) {
+            ch = _getch();  // Read each character without displaying it
+            if (ch == 13) // Enter key
+                break;
+            else if (ch == 8) { // Backspace
+                if (!password.empty()) {
+                    password.pop_back();
+                    cout << "\b \b"; // Erase character from console
+                }
+            }
+            else {
+                password.push_back(ch);
+                cout << "*"; // Display asterisk for each character typed
+            }
+        }
+
+        // Query to validate login credentials for Customer
+        string query = "SELECT * FROM customer_menu WHERE username = '" + username + "' AND password = '" + password + "' LIMIT 1";
+        const char* q = query.c_str();
+        if (mysql_query(conn, q) == 0) {
+            res = mysql_store_result(conn);
+            if (mysql_num_rows(res) > 0) {
+                cout << "\nLogin Successful! Welcome, " << username << endl;
+                mysql_free_result(res);
+
+                // Redirect to Customer Menu
+                CustomerMenu(conn, username); // Customer menu call
+                return; // Exit the function immediately after success
+            }
+        }
+
+        // Query to validate login credentials for Staff
+        query = "SELECT * FROM staff_menu WHERE username_staff = '" + username + "' AND password_staff = '" + password + "' LIMIT 1";
+        q = query.c_str();
+        if (mysql_query(conn, q) == 0) {
+            res = mysql_store_result(conn);
+            if (mysql_num_rows(res) > 0) {
+                cout << "\nLogin Successful! Welcome Staff, " << username << endl;
+                mysql_free_result(res);
+
+                // Redirect to Staff Menu
+                StaffMenu(conn, username); // Staff menu call
+                return; // Exit the function immediately after success
+            }
+        }
+
+        // Query to validate login credentials for Admin
+        query = "SELECT * FROM admin_menu WHERE username_admin = '" + username + "' AND password = '" + password + "' LIMIT 1";
+        q = query.c_str();
+        if (mysql_query(conn, q) == 0) {
+            res = mysql_store_result(conn);
+            if (mysql_num_rows(res) > 0) {
+                cout << "\nLogin Successful! Welcome Admin, " << username << endl;
+                mysql_free_result(res);
+
+                // Redirect to Admin Menu
+                AdminMenu(conn, username); // Admin menu call
+                return; // Exit the function immediately after success
+            }
+        }
+
+        // If all checks fail
+        cout << "\nInvalid username or password. Please try again.\n";
+        attempts++;
+
+        if (attempts >= maxAttempts) {
+            cout << "\nToo many incorrect attempts. Exiting the system.\n";
+            exit(0); // Exit after too many failed attempts
+        }
+    }
+}
+
+
+// Register Page Function
+void RegisterPage() {
+    string name, age, username, password, email, phone, address;
+    int userChoice;
+
+    cout << "\n--- Registration Page ---\n";
+    cout << "Choose Account Type:\n";
+    cout << "1. Customer\n";
+    cout << "2. Staff (Requires Password)\n";
+    cout << "Please select (1 or 2): ";
+    cin >> userChoice;
+
+    if (userChoice == 1) {
+        cout << "\nYou chose to register as a Customer.\n";
+        
+        //Enter Name
+        cout << "Enter your Name: ";
+        cin.ignore();
+        getline(cin, name);
+
+        //Enter Age
+        cout << "Enter your Age: ";
+        cin >> age;
+        //cin.ignore();
+        //getline(cin, age);
+
+        //Enter Username
+        cout << "Enter Username: ";
+        cin >> username;
+
+        //Enter Password
+        cout << "Enter Password: ";
+        cin >> password;
+
+        //Enter Email
+        cout << "Enter Email: ";
+        cin >> email;
+
+        //Enter Phone
+        cout << "Enter Phone: ";
+        cin >> phone;
+
+        //Enter Address
+        cout << "Enter Address: ";
+        cin.ignore();
+        getline(cin, address);
+
+        string insertQuery = "INSERT INTO customer_menu (username, password, name, age, email, phone, address) VALUES ('" +
+            username + "', '" + password + "', '" + name + "', '" + age + "', '" + email + "', '" + phone + "', '" + address + "');";
+
+        const char* q = insertQuery.c_str();
+        int q_state = mysql_query(conn, q);
+
+        if (!q_state) {
+            cout << "Customer registration successful!\n";
+        }
+        else {
+            cout << "Query Execution Problem: " << mysql_error(conn) << endl;
+        }
+    }
+    else if (userChoice == 2) {
+        cout << "\nYou chose to register as a Staff.\n";
+        StaffPasswordCheck();
+    }
+    else {
+        cout << "Invalid choice! Returning to registration page.\n";
+        RegisterPage();
+    }
+}
+
+void StaffPasswordCheck() {
+    string enteredPassword;
+    const string correctPassword = "Staff2003";
+    int attempts = 0;
+
+    while (attempts < 3) {
+        cout << "Enter Special Staff Password to register: ";
+        enteredPassword = "";
+        char ch;
+        while (true) {
+            ch = _getch();
+            if (ch == 13) break;
+            else if (ch == 8) {
+                if (!enteredPassword.empty()) {
+                    enteredPassword.pop_back();
+                    cout << "\b \b";
+                }
+            }
+            else {
+                enteredPassword.push_back(ch);
+                cout << "*";
+            }
+        }
+
+        if (enteredPassword == correctPassword) {
+            cout << "\nPassword correct! Proceeding with Staff registration.\n";
+
+            // Collect Staff Registration Info
+            string name, age, username, password, email, phone, address;
+
+            //Enter Name
+            cout << "Enter your Name: ";
+            cin.ignore();
+            getline(cin, name);
+
+            //Enter Age
+            cout << "Enter your Age: ";
+            cin >> age;
+            //cin.ignore();
+            //getline(cin, age);
+
+            //Enter Username
+            cout << "Enter Username: ";
+            cin >> username;
+
+            //Enter Password
+            cout << "Enter Password: ";
+            cin >> password;
+
+            //Enter Email
+            cout << "Enter Email: ";
+            cin >> email;
+
+            //Enter Phone
+            cout << "Enter Phone: ";
+            cin >> phone;
+
+            //Enter Address
+            cout << "Enter Address: ";
+            cin.ignore();
+            getline(cin, address);
+
+            string insertQuery = "INSERT INTO staff_menu (username_staff, password_staff, name_staff, age_staff, email_staff, phone_staff, address_staff) VALUES ('" +
+                username + "', '" + password + "', '" + name + "', '" + age + "', '" + email + "', '" + phone + "', '" + address + "');";
+            const char* q = insertQuery.c_str();
+            int q_state = mysql_query(conn, q);
+
+            if (!q_state) {
+                cout << "Staff registration successful!\n";
+            }
+            else {
+                cout << "Query Execution Problem: " << mysql_error(conn) << endl;
+            }
+            return;
+        }
+        else {
+            attempts++;
+            cout << "\nIncorrect password! Attempt " << attempts << " of 3\n";
+        }
+    }
+
+    cout << "\nToo many failed attempts. Returning to main menu.\n";
+    ShowWelcomePage();
+}
+
+int main() {
+    db_response::ConnectionFunction();
+
+    int choice;
+    ShowWelcomePage();
+    cin >> choice;
+    HandleUserChoice(choice);
+
+    return 0;
+}
